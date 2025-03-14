@@ -11,63 +11,30 @@ interface MediaItem {
 export interface StoryProps {
   media: MediaItem[];
   icon: string;
+}
+
+interface StoryViewerProps extends StoryProps {
+  isOpen: boolean;
+  onOpen: () => void;
+  onClose: () => void;
   onNextStory: () => void;
   onPrevStory: () => void;
 }
 
-const StoryViewer: React.FC<StoryProps> = ({ media, icon, onNextStory, onPrevStory }) => {
-  const [isOpen, setIsOpen] = useState(false);
+const StoryViewer: React.FC<StoryViewerProps> = ({
+  media,
+  icon,
+  isOpen,
+  onOpen,
+  onClose,
+  onNextStory,
+  onPrevStory
+}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const touchStartX = useRef<number | null>(null);
-
-  const openModal = () => {
-    setIsOpen(true);
-    setCurrentIndex(0);
-  };
-
-  const closeModal = () => {
-    setIsOpen(false);
-    setCurrentIndex(0);
-    setProgress(0);
-    if (timerRef.current) clearTimeout(timerRef.current);
-  };
-
-  const goToNext = () => {
-    if (currentIndex < media.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      setProgress(0);
-    } else {
-      onNextStory(); // Переключение на следующую сторис
-    }
-  };
-
-  const goToPrev = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex((prev) => prev - 1);
-      setProgress(0);
-    } else {
-      onPrevStory(); // Переключение на предыдущую сторис
-    }
-  };
-
-  const handleStorySwipeStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleStorySwipeEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-
-    if (deltaX > 25) {
-      onPrevStory(); // Свайп влево — предыдущая сторис
-    } else if (deltaX < -25) {
-      onNextStory(); // Свайп вправо — следующая сторис
-    }
-    touchStartX.current = null;
-  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -111,41 +78,74 @@ const StoryViewer: React.FC<StoryProps> = ({ media, icon, onNextStory, onPrevSto
     };
   }, [currentIndex, isOpen]);
 
+  const goToNext = () => {
+    if (currentIndex < media.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+      setProgress(0);
+    }
+  };
+
+  const goToPrev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+      setProgress(0);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const difference = touchStartX.current - touchEndX;
+
+    if (difference > 50) {
+      onNextStory();
+    } else if (difference < -50) {
+      onPrevStory();
+    }
+
+    touchStartX.current = null;
+  };
+
   return (
-    <div className="story-item" onTouchStart={handleStorySwipeStart} onTouchEnd={handleStorySwipeEnd}>
-      <img src={icon} alt="Story Icon" className="story-icon" onClick={openModal} />
+    <div className="story-item">
+      <img src={icon} alt="Story Icon" className="story-icon" onClick={onOpen} />
 
-      <Modal open={isOpen} footer={null} onCancel={closeModal} centered width={"100vw"} closable={false} className="custom-modal">
-        <div className="story-modal-content">
-          <button className="close-btn" onClick={closeModal}>
-            <CloseOutlined />
-          </button>
+      {isOpen && (
+        <Modal open={isOpen} footer={null} onCancel={onClose} centered width={"100vw"} closable={false} className="custom-modal">
+          <div className="story-modal-content" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+            <button className="close-btn" onClick={onClose}>
+              <CloseOutlined />
+            </button>
 
-          {/* Прогресс-бар */}
-          <div className="progress-bar">
-            {media.map((_, index) => (
-              <div key={index} className="progress-segment">
-                <div
-                  className={`progress-fill ${index <= currentIndex ? "active" : ""}`}
-                  style={{ width: index === currentIndex ? `${progress}%` : index < currentIndex ? "100%" : "0%" }}
-                ></div>
-              </div>
-            ))}
+            <div className="progress-bar">
+              {media.map((_, index) => (
+                <div key={index} className="progress-segment">
+                  <div
+                    className={`progress-fill ${index <= currentIndex ? "active" : ""}`}
+                    style={{ width: index === currentIndex ? `${progress}%` : index < currentIndex ? "100%" : "0%" }}
+                  ></div>
+                </div>
+              ))}
+            </div>
+
+            <div className="media-container">
+              {media[currentIndex].type === "image" ? (
+                <img src={media[currentIndex].src} alt="Story" className="full-screen-media" />
+              ) : (
+                <video src={media[currentIndex].src} autoPlay controls ref={videoRef} className="full-screen-media" />
+              )}
+
+              <button className="nav-btn left" onClick={goToPrev}></button>
+              <button className="nav-btn right" onClick={goToNext}></button>
+            </div>
           </div>
-
-          {/* Контейнер медиа */}
-          <div className="media-container">
-            {media[currentIndex].type === "image" ? (
-              <img src={media[currentIndex].src} alt="Story" className="full-screen-media" />
-            ) : (
-              <video src={media[currentIndex].src} autoPlay controls ref={videoRef} className="full-screen-media" />
-            )}
-
-            <button className="nav-btn left" onClick={goToPrev}></button>
-            <button className="nav-btn right" onClick={goToNext}></button>
-          </div>
-        </div>
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 };
